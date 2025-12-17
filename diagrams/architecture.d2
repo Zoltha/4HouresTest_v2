@@ -1,0 +1,147 @@
+# Integration Middleware Architecture
+# D2 Diagram - https://d2lang.com/
+
+title: |md
+  # D365 CE Integration Middleware Architecture
+  Azure-based middleware for Dynamics 365 to External System integration
+|
+
+# Styling
+direction: right
+
+# Source System - Dynamics 365
+dynamics365: {
+  label: "Dynamics 365 CE\n(Dataverse)"
+  shape: cylinder
+  style: {
+    fill: "#0078D4"
+    font-color: white
+  }
+  
+  accounts: {
+    label: "Accounts"
+    shape: sql_table
+  }
+  
+  plugin: {
+    label: "Plugin / Flow"
+    shape: hexagon
+    style: {
+      fill: "#5C2D91"
+      font-color: white
+    }
+  }
+  
+  accounts -> plugin: "Create/Update"
+}
+
+# Azure Integration Layer
+azure: {
+  label: "Azure Integration Middleware"
+  style: {
+    fill: "#E6F2FF"
+  }
+  
+  service_bus: {
+    label: "Azure Service Bus\naccount-events queue"
+    shape: queue
+    style: {
+      fill: "#0089D6"
+      font-color: white
+    }
+  }
+  
+  dlq: {
+    label: "Dead Letter Queue"
+    shape: queue
+    style: {
+      fill: "#D83B01"
+      font-color: white
+    }
+  }
+  
+  functions: {
+    label: "Azure Functions\n(.NET 8 Isolated)"
+    shape: cloud
+    style: {
+      fill: "#FFBF00"
+    }
+    
+    event_processor: {
+      label: "AccountEventProcessor\n(ServiceBusTrigger)"
+      shape: rectangle
+    }
+    
+    crud_api: {
+      label: "AccountCrudApi\n(HttpTrigger)"
+      shape: rectangle
+    }
+  }
+  
+  key_vault: {
+    label: "Key Vault"
+    shape: cylinder
+    style: {
+      fill: "#007FFF"
+      font-color: white
+    }
+  }
+  
+  app_insights: {
+    label: "Application Insights"
+    shape: cylinder
+    style: {
+      fill: "#68217A"
+      font-color: white
+    }
+  }
+  
+  service_bus -> functions.event_processor: "Trigger"
+  service_bus -> dlq: "Max retries\nexceeded"
+  functions.event_processor -> key_vault: "Secrets"
+  functions.crud_api -> key_vault: "Secrets"
+  functions -> app_insights: "Telemetry"
+}
+
+# External System
+external: {
+  label: "External System\n(Core Banking/ERP)"
+  shape: cylinder
+  style: {
+    fill: "#107C10"
+    font-color: white
+  }
+  
+  api: {
+    label: "REST API"
+    shape: rectangle
+  }
+}
+
+# API Consumer
+api_consumer: {
+  label: "API Consumer\n(Web App/Integration)"
+  shape: person
+}
+
+# Connections between systems
+dynamics365.plugin -> azure.service_bus: "Publish Event\n(JSON)"
+azure.functions.event_processor -> external.api: "Sync Account\n(REST)"
+azure.functions.event_processor -> dynamics365.accounts: "Read Account\n(Web API)"
+azure.functions.crud_api -> dynamics365.accounts: "CRUD\n(Web API)"
+api_consumer -> azure.functions.crud_api: "HTTP\n(REST)"
+
+# Legend
+legend: {
+  label: |md
+    ## Legend
+    - **Service Bus**: Async messaging, guaranteed delivery
+    - **Functions**: Serverless compute, event-driven
+    - **Key Vault**: Secure secret storage
+    - **Managed Identity**: Passwordless authentication
+  |
+  style: {
+    fill: "#FAFAFA"
+    stroke: "#999"
+  }
+}
