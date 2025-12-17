@@ -100,10 +100,12 @@ public class DataverseService : IDataverseService
         await Task.Delay(10); // Simulate network latency
 
         // Return mock data for demonstration
+        // Using ToString("N") for consistent GUID format (no hyphens)
+        var accountIdStr = accountId.ToString("N");
         return new AccountDto
         {
             AccountId = accountId,
-            AccountNumber = $"ACC-{accountId.ToString()[..8].ToUpper()}",
+            AccountNumber = $"ACC-{accountIdStr.Substring(0, 8).ToUpperInvariant()}",
             Name = "Sample Account",
             Status = 0, // Active
             Email = "sample@example.com",

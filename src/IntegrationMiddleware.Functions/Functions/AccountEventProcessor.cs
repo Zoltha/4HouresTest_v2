@@ -107,18 +107,19 @@ public class AccountEventProcessor
         try
         {
             // Deserialize the message body
+            // Note: BinaryData.ToString() correctly returns the UTF-8 string content for JSON messages
+            var messageBody = message.Body.ToString();
             var accountEvent = JsonSerializer.Deserialize<AccountEvent>(
-                message.Body.ToString(),
+                messageBody,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (accountEvent == null)
             {
                 _logger.LogError(
                     "[{CorrelationId}] Failed to deserialize message. Body: {Body}",
-                    correlationId, message.Body.ToString());
+                    correlationId, messageBody);
                 
-                // Don't throw - message will go to DLQ after max retries
-                // In production, might want to throw to trigger retry
+                // Throw to trigger retry - after max retries, message goes to DLQ
                 throw new InvalidOperationException("Failed to deserialize AccountEvent");
             }
 
