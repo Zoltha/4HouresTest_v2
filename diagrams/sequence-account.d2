@@ -1,0 +1,136 @@
+# Account Sync Sequence Diagram
+# D2 Diagram - https://d2lang.com/
+
+title: |md
+  # Account Create/Update Sequence
+  Event-driven flow from Dynamics 365 to External System
+|
+
+# Participants
+user: {
+  label: "User"
+  shape: person
+}
+
+dynamics365: {
+  label: "Dynamics 365"
+  shape: rectangle
+  style: {
+    fill: "#0078D4"
+    font-color: white
+  }
+}
+
+plugin: {
+  label: "Plugin/Flow"
+  shape: hexagon
+  style: {
+    fill: "#5C2D91"
+    font-color: white
+  }
+}
+
+service_bus: {
+  label: "Service Bus"
+  shape: queue
+  style: {
+    fill: "#0089D6"
+    font-color: white
+  }
+}
+
+function: {
+  label: "Azure Function\nAccountEventProcessor"
+  shape: rectangle
+  style: {
+    fill: "#FFBF00"
+  }
+}
+
+external_api: {
+  label: "External API"
+  shape: rectangle
+  style: {
+    fill: "#107C10"
+    font-color: white
+  }
+}
+
+# Sequence Flow
+user -> dynamics365: |md
+  **1. Create/Update Account**
+  User saves account in D365
+|
+
+dynamics365 -> plugin: |md
+  **2. Trigger Plugin**
+  PostOperation event fires
+|
+
+plugin -> service_bus: |md
+  **3. Publish Event**
+  AccountEvent message
+  {correlationId, eventType, data}
+|
+
+service_bus -> function: |md
+  **4. Trigger Function**
+  ServiceBusTrigger fires
+  Message delivered
+|
+
+function -> dynamics365: |md
+  **5. Fetch Account (if needed)**
+  GET /api/data/v9.2/accounts(id)
+  (Optional - if data not in message)
+|
+
+function -> external_api: |md
+  **6. Validate Account**
+  POST /validate/kyc
+  (Banking compliance check)
+|
+
+external_api -> function: |md
+  **7. Validation Response**
+  {isValid: true}
+|
+
+function -> external_api: |md
+  **8. Sync Account**
+  POST/PUT /accounts
+  Account data payload
+|
+
+external_api -> function: |md
+  **9. Sync Response**
+  201 Created / 200 OK
+|
+
+function -> service_bus: |md
+  **10. Complete Message**
+  Message removed from queue
+  (Automatic on success)
+|
+
+# Error Path
+error_note: {
+  label: |md
+    ## Error Handling
+    
+    **If step 6-9 fails:**
+    1. Function throws exception
+    2. Message returns to queue
+    3. Retry with exponential backoff
+    4. After max retries → Dead Letter Queue
+    
+    **Idempotency (production):**
+    - Check CorrelationId before processing
+    - Use conditional updates (If-Match)
+    - Design for at-least-once delivery
+  |
+  style: {
+    fill: "#FFF3CD"
+    stroke: "#856404"
+  }
+}
